@@ -50,17 +50,25 @@ pipeline {
         stage('Update Manifest for ArgoCD') {
             steps {
                 echo 'Updating deployment image tag for GitOps sync...'
-                sh '''
-                    sed -i "s|image: ${DOCKER_USER}/${IMAGE_NAME}:.*|image: ${DOCKER_USER}/${IMAGE_NAME}:${IMAGE_TAG}|g" k8s/deployment.yaml
-                    git config --global user.email "jenkins@ci.local"
-                    git config --global user.name "Jenkins CI"
-                    git add k8s/deployment.yaml
-                    git commit -m "chore(cd): update image tag to ${IMAGE_TAG} [skip ci]" || echo "No changes to commit"
-                    git push origin main
-                '''
+                withCredentials([usernamePassword(credentialsId: 'github-credentials', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
+                    sh '''
+                        # Update the image tag in deployment manifest
+                        sed -i "s|image: hr1thik/online-exam-backend:.*|image: hr1thik/online-exam-backend:${BUILD_NUMBER}|g" k8s/deployment.yaml
+
+                        # Configure Git author
+                        git config user.email "jenkins@ci.local"
+                        git config user.name "Jenkins CI"
+
+                        # Commit the change
+                        git add k8s/deployment.yaml
+                        git commit -m "chore(cd): update image tag to ${BUILD_NUMBER} [skip ci]"
+
+                        # Push current HEAD directly to remote main branch using authentication token
+                        git push https://${GH_TOKEN}@github.com/Hr1thik/Project-SCM.git HEAD:main
+                    '''
+                }
             }
         }
-    }
 
     post {
         always {
